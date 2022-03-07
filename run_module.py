@@ -1,22 +1,27 @@
 import sys
 import os
+from glob import glob
 from os.path import join
 
 PROJ_DIR = '/home/gcgreen2/alignment'
-OUT_DIR = join(PROJ_DIR, 'out', 'mh')
 READS_DIR = join(PROJ_DIR, 'spectral_jaccard_similarity/filtered_fasta')
+READS_PATHS = glob(READS_DIR+'/*.fasta')
 
 sys.path.append(join(PROJ_DIR,'SequenceAlignmentAndSketching'))
 import minhash
-os.makedirs(OUT_DIR, exist_ok=True)
+import loc_minhash
 
-# PARAMS
-k = 16
+### PARAMS ##########################
+k = 12
 n_bits = 24
 n_hash = 200
+OUT_DIR = join(PROJ_DIR, 'out', f'mh_k{str(k)}_h{str(n_hash)}')
+METHOD = minhash
+#####################################
 
-for reads_file in os.listdir(READS_DIR):
-    reads_path = join(READS_DIR, reads_file)
+os.makedirs(OUT_DIR, exist_ok=True)
+for reads_path in READS_PATHS:
+    reads_file = os.path.basename(reads_path)
     aln_file = reads_file.replace('_reads.fasta','_aln.tsv')
     aln_path = join(OUT_DIR, aln_file)
-    minhash.find_overlaps(reads_path, aln_path, k=k, n_bits=n_bits, n_hash=n_hash)
+    METHOD.find_overlaps(reads_path, aln_path, k=k, n_hash=n_hash, n_bits=n_bits)

@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from multiprocessing import Pool
 from numpy.random import randint
 from sympy import nextprime
 
@@ -8,10 +9,11 @@ rc_base = {'A':'T','T':'A','G':'C','C':'G'}
 revcomp = lambda seq: ''.join([rc_base[b] for b in seq[::-1]])
 
 class random_hash_func():
-    def __init__(self,n_bits=20):
+    def __init__(self,n_bits,k):
         self.a = randint(2**n_bits)
         self.b = randint(2**n_bits)
         self.max_hash = nextprime(2**n_bits)
+        self.k = k
     
     def seq_to_bin(self, seq, rc=False):
         if rc: seq = revcomp(seq)
@@ -22,11 +24,20 @@ class random_hash_func():
         hash_val = (int(bin_repr,2)*self.a + self.b) % self.max_hash
         return hash_val
     
-    def __call__(self, seq, k):
-        n_kmers = len(seq)-k+1; assert n_kmers>0
+    def __call__(self, seq):
+        n_kmers = len(seq)-self.k+1; assert n_kmers>0
         bin_repr = self.seq_to_bin(seq)
-        bin_repr_rc = self.seq_to_bin(seq, rc=True)
-        hashes = [self.hash_val(bin_repr[2*i:2*(i+k)]) for i in range(n_kmers)]
-        hashes_rc = [self.hash_val(bin_repr_rc[2*i:2*(i+k)]) for i in range(n_kmers)]
-        return hashes, hashes_rc
+        hashes = [self.hash_val(bin_repr[2*i:2*(i+self.k)]) for i in range(n_kmers)]
+        return hashes
+    
+def get_seq_sketches(sketcher,seq,hs): 
+    return [sketcher(seq,h) for h in hs], [sketcher(revcomp(seq),h) for h in hs]
+
+def get_all_sketches(sketcher, seqs, k, n_hash, n_bits):
+    hs = [random_hash_func(n_bits=n_bits, k=k) for _ in range(n_hash)]
+    args = ((sketcher,seqs[i],hs) for i in range(len(seqs)))
+    with Pool() as pool:
+        sketches = pool.starmap(get_seq_sketches, args)
+    return sketches
+
 
