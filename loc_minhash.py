@@ -13,17 +13,23 @@ def loc_minhash(seq, h): # returns (minhash, location)
     loc = np.argmin(hashes)
     return hashes[loc], loc
 
+# def get_loc_diffs(loc_minhashes1, loc_minhashes2, len1, len2):
+#     loc_diffs,loc_diffs_rc = [],[]
+#     loc_minhashes1 = loc_minhashes1[0]
+#     loc_minhashes2,loc_minhashes2_rc = loc_minhashes2
+#     for lmh1,lmh2 in zip(loc_minhashes1,loc_minhashes2):
+#         if lmh1[0]==lmh2[0]:
+#             loc_diffs.append(lmh1[1]-lmh2[1])
+#     for lmh1,lmh2 in zip(loc_minhashes1,loc_minhashes2_rc):
+#         if lmh1[0]==lmh2[0]:
+#             loc_diffs_rc.append(lmh1[1]-lmh2[1])
+#     loc_diffs = loc_diffs if len(loc_diffs)>len(loc_diffs_rc) else loc_diffs_rc
+#     return np.array(loc_diffs)
 def get_loc_diffs(loc_minhashes1, loc_minhashes2, len1, len2):
-    loc_diffs,loc_diffs_rc = [],[]
-    loc_minhashes1 = loc_minhashes1[0]
-    loc_minhashes2,loc_minhashes2_rc = loc_minhashes2
+    loc_diffs = []
     for lmh1,lmh2 in zip(loc_minhashes1,loc_minhashes2):
         if lmh1[0]==lmh2[0]:
             loc_diffs.append(lmh1[1]-lmh2[1])
-    for lmh1,lmh2 in zip(loc_minhashes1,loc_minhashes2_rc):
-        if lmh1[0]==lmh2[0]:
-            loc_diffs_rc.append(lmh1[1]-lmh2[1])
-    loc_diffs = loc_diffs if len(loc_diffs)>len(loc_diffs_rc) else loc_diffs_rc
     return np.array(loc_diffs)
 
 def weight_collisions(loc_diffs):

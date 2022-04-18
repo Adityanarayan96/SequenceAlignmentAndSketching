@@ -5,8 +5,8 @@ from numpy.random import randint
 from sympy import nextprime
 
 base_to_bin = {'A':'00', 'T':'01', 'G':'10', 'C':'11'}
-rc_base = {'A':'T','T':'A','G':'C','C':'G'}
-revcomp = lambda seq: ''.join([rc_base[b] for b in seq[::-1]])
+# rc_base = {'A':'T','T':'A','G':'C','C':'G'}
+# revcomp = lambda seq: ''.join([rc_base[b] for b in seq[::-1]])
 
 class random_hash_func():
     def __init__(self,n_bits,k):
@@ -15,8 +15,8 @@ class random_hash_func():
         self.max_hash = nextprime(2**n_bits)
         self.k = k
     
-    def seq_to_bin(self, seq, rc=False):
-        if rc: seq = revcomp(seq)
+    def seq_to_bin(self, seq):
+#         if rc: seq = revcomp(seq)
         bin_repr = ''.join([base_to_bin[b] for b in seq])
         return bin_repr 
     
@@ -31,7 +31,8 @@ class random_hash_func():
         return hashes
     
 def get_seq_sketches(sketcher,seq,hs): 
-    return [sketcher(seq,h) for h in hs], [sketcher(revcomp(seq),h) for h in hs]
+    return [sketcher(seq,h) for h in hs]
+#     return [sketcher(seq,h) for h in hs], [sketcher(revcomp(seq),h) for h in hs]
 
 def get_all_sketches(sketcher, seqs, k, n_hash, n_bits):
     hs = [random_hash_func(n_bits=n_bits, k=k) for _ in range(n_hash)]

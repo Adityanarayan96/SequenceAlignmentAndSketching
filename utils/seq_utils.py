@@ -3,6 +3,8 @@ import pyfastx
 from collections import OrderedDict
 
 BASES = {'A','T','C','G'}
+RC = {'A':'T','T':'A','C':'G','G':'C','a':'t','t':'a','c':'g','g':'c'}
+revcomp = lambda seq: ''.join([RC[b] for b in seq[::-1]])
 
 def clean_seqs(seqs, replace_nonbase=''):
     for i in range(len(seqs)):
