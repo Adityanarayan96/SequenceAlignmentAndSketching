@@ -1,7 +1,10 @@
 import os
 import pyfastx
+from collections import OrderedDict
 
 BASES = {'A','T','C','G'}
+RC = {'A':'T','T':'A','C':'G','G':'C','a':'t','t':'a','c':'g','g':'c'}
+revcomp = lambda seq: ''.join([RC[b] for b in seq[::-1]])
 
 def clean_seqs(seqs, replace_nonbase=''):
     for i in range(len(seqs)):
@@ -34,8 +37,12 @@ def get_longest_seq_id(file): # seq id of first seq
 
 ########### WRITING FILES
 
-def write_fasta(file, seqs): # seqs should be dict
+def write_fasta(file, seqs): 
+    '''seqs should be list of tuples (id, seq)'''
     with open(file, 'w') as fh:
-        for seq_id in seqs:
-            fh.write('>' + seq_id + "\n")
-            fh.write(seqs[seq_id] + "\n")
+        for seq in seqs:
+            fh.write('>' + seq[0] + "\n")
+            fh.write(seq[1] + "\n")
+            
+            
+#########################################
