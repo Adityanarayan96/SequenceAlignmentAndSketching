@@ -42,11 +42,11 @@ def get_overlaps(pred_df, gt_df):
     return overlaps
 
 
-def roc(pred_paths, gt_paths, dset):
+def roc(pred_paths, gt_paths, dsets):
     plt.figure()
     lw=2
     
-    for pred_path,gt_path in zip(pred_paths,gt_paths):
+    for pred_path,gt_path,dset in zip(pred_paths,gt_paths,dsets):
 #         run_dir = os.path.join(pred_dir, run)
         pred_df, gt_df = load_dfs(pred_path, gt_path)
         overlaps = get_overlaps(pred_df, gt_df)

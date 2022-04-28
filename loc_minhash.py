@@ -34,7 +34,7 @@ def get_loc_diffs(loc_minhashes1, loc_minhashes2, len1, len2):
 
 def weight_collisions(loc_diffs):
     counts = [sum(np.abs(loc_diffs-diff)<WINDOW_LEN) for diff in loc_diffs]
-#     weight = sum([c for c in counts])
+    weight = sum([c for c in counts])
     return max(counts)
 
 def est_overlap(loc_minhashes1, loc_minhashes2, len1, len2):
@@ -49,6 +49,7 @@ def est_overlap(loc_minhashes1, loc_minhashes2, len1, len2):
 def find_overlaps(fasta_file, aln_file, k, n_hash=100, n_bits=20):
 #     global COUNT_THRESH
 #     COUNT_THRESH = 4**-k * n_hash
+    np.random.seed(0)
     seqs = su.get_seqs(fasta_file); seq_lens = [len(s) for s in seqs]
     loc_minhashes = hu.get_all_sketches(loc_minhash, seqs, k, n_hash, n_bits)
     au.find_overlaps(aln_file, loc_minhashes, seq_lens, est_overlap)

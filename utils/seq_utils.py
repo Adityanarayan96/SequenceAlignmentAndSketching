@@ -22,8 +22,11 @@ def get_fastq(file):
     return pyfastx.Fastq(file)
 
 def get_seqs(file, fa_fq='fa'):
-    f = get_fasta(file) if fa_fq=='fa' else get_fastq(file)
-    seqs = [s.seq for s in list(f)]
+    seqs = []
+    with open(file, 'r') as fh:
+        for line in fh.readlines():
+            if line[0] == ">": seqs.append('')
+            else: seqs[-1] += line
     seqs = clean_seqs(seqs)
     return seqs
 

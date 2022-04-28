@@ -13,7 +13,6 @@ def pairwise_overlap_ests(seq_lens, sketches, est_overlap):
     return pairwise_ests
 
 def find_overlaps(aln_file, sketches, seq_lens, est_overlap):
-    np.random.seed(0)
     pairwise_ests = pairwise_overlap_ests(seq_lens, sketches, est_overlap)
     print(f'# overlaps: {len(pairwise_ests)}')
     with open(aln_file, 'w') as fh:
