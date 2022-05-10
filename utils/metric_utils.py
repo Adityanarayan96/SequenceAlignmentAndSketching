@@ -19,7 +19,7 @@ def load_dfs(pred_path, gt_path): # load the alignment files
     gt_df = pd.read_csv(gt_path, sep='\t', header=None, names=['i1','i2','overlap','l1','l2'])
     return pred_df, gt_df
 
-def get_overlaps(pred_df, gt_df):
+def get_overlaps(pred_df, gt_df): # returns [predicted, gt]
     overlaps = {}
     for i in range(len(gt_df)):
         line = gt_df.iloc[i]
