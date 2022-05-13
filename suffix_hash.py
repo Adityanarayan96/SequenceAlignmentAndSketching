@@ -8,8 +8,8 @@ import sys
 from multiprocessing import Pool
 
 sys.path.append('/home/gcgreen2/alignment/SequenceAlignmentAndSketching/utils')
-import seq_utils as su
-import aln_utils as au
+# import seq_utils as su
+# import aln_utils as au
 
 
 # The following script is used to evaluate the locational hashes of two DNA sequences.
@@ -96,6 +96,11 @@ def est_overlap_edit_dist(sketch1, sketch2, seq1, seq2, k=30):
     similarity = sum([k-e for e in edit_dists if e!=-1])
     return similarity, edit_dists
 
+def est_overlap_edit_dist_filter(sketch1, sketch2, seq1, seq2, k=30):
+    edit_dists = [edit_dist(seq1[i:i+k],seq2[j:j+k]) for i,j in zip(sketch1, sketch2)]
+    similarity = sum([k-e for e in edit_dists if e!=-1])
+    return similarity, edit_dists
+
 ###################################################
 
 def get_matching_bases(i, j, seq1, seq2):
@@ -111,6 +116,23 @@ def est_overlap_top_matching(sketch1, sketch2, seq1, seq2):
     total_match = sum(n_matching)
     return total_match, n_matching
 
+def est_overlap_top_matching_filter(sketch1, sketch2, seq1, seq2,c): #c is a parameter that increases the threshold as (1+c)*median
+    n_matching = [get_matching_bases(i,j,seq1,seq2) for i,j in zip(sketch1, sketch2)]
+    threshold = np.median(n_matching)*(1+c)
+    n_matching = np.array(n_matching)
+    n_matching[np.argwhere(n_matching <= threshold)] = 0
+    n_matching = n_matching.tolist()
+    total_match = sum(n_matching)
+    return total_match, n_matching
+
+# def est_overlap_top_matching_filter_with_sampling(sketch1, sketch2, seq1, seq2,c): #c is a parameter that increases the threshold as (1+c)*median
+#     n_matching = [get_matching_bases(i,j,seq1,seq2) for i,j in zip(sketch1, sketch2)]
+#     threshold = np.median(n_matching)*(1+c)
+#     n_matching = np.array(n_matching)
+#     n_matching[np.argwhere(n_matching <= threshold)] = 0
+#     n_matching = n_matching.tolist()
+#     total_match = sum(n_matching)
+#     return total_match, n_matching 
 ######################################################
     
 def pairwise_overlap_ests(sketches, seqs, seq_lens, est_overlap):
@@ -137,8 +159,9 @@ def get_seq_sketches(seq, masks): #Sketch size is B
     sketches = [lexicographic_first(seq,mask) for mask in masks]
     return sketches
 
-def get_all_sketches(seqs, n_hash, n_bits):
-    masks = obtain_masks(n_bits, n_hash);
+def get_all_sketches(seqs, n_hash): #Modified this to not include n_bits, since it is confusing
+    seq_lens = [len(s) for s in seqs]
+    masks = obtain_masks(max(seq_lens), n_hash);
     args = ((seq,masks) for seq in seqs)
     with Pool() as pool:
         sketches = pool.starmap(get_seq_sketches, args)
@@ -148,7 +171,7 @@ def get_all_sketches(seqs, n_hash, n_bits):
 
 def find_overlaps(fasta_file, aln_file, n_hash=100, n_bits=None, k=None, est_method=1):
     seqs = su.get_seqs(fasta_file); seq_lens = [len(s) for s in seqs]
-    sketches = get_all_sketches(seqs, n_hash, max(seq_lens))
+    sketches = get_all_sketches(seqs, n_hash)
     if est_method==1: 
         threshold = get_threshold(sketches, seqs)
         estimates = pairwise_overlap_ests(sketches, seqs, seq_lens, est_overlap_top_matching)
