@@ -1,16 +1,20 @@
 import numpy as np
-import random
-import math
-from scipy import stats
+from scipy.optimize import minimize
+from scipy.stats import norm
 from tqdm import tqdm
+import pandas as pd
 import string
 import sys
 from multiprocessing import Pool
 
 sys.path.append('/home/gcgreen2/alignment/SequenceAlignmentAndSketching/utils')
-# import seq_utils as su
+import seq_utils as su
+# import utils
 # import aln_utils as au
 
+EDIT_K = 20
+NORMAL1 = {'sgn':1, 'init':(7,2,2), 'bounds':[(4,20),(1,5),(0.5,0.9)]}
+NORMAL2 = {'sgn':-1, 'init':(13,2,2), 'bounds':[(6,19),(0.5,5),(0.5,0.9)]}
 
 # The following script is used to evaluate the locational hashes of two DNA sequences.
 
@@ -68,18 +72,21 @@ def lexicographic_first(array,mask):
 
 ###############################################
 
-def edit_dist(s, t, d=5):
+def edit_dist(s, t, d=4, thresh=EDIT_K):
     if len(s)!=len(t): return -1
-    rows = len(s)+1
-#     deletes, inserts, substitutes = (1,1,1)
     
+    n_matching = get_matching_bases(0,0,s,t)
+    if len(s)-n_matching<=d: return 0
+    s,t = s[n_matching:],t[n_matching:]
+    
+    rows = len(s)+1 
     dist = [[np.inf for _ in range(2*d+3)] for i in range(rows)]
 
     # init memoization
     for row in range(d+1):
-        dist[row][d-row+1] = row * deletes
+        dist[row][d-row+1] = row
     for col in range(d+1):
-        dist[0][col+d+1] = col * inserts 
+        dist[0][col+d+1] = col 
         
     # dynamic programming
     for row in range(1, rows):
@@ -88,18 +95,12 @@ def edit_dist(s, t, d=5):
             dist[row][col+d+1] = min(dist[row-1][col+d+2] + 1,
                                  dist[row][col+d] + 1,
                                  dist[row-1][col+d+1] + cost) # substitution
-#         if min(dist[row]) > 2*d: return -1
     return min(dist[-1])
 
-def est_overlap_edit_dist(sketch1, sketch2, seq1, seq2, k=30):
+def est_overlap_edit_dist(sketch1, sketch2, seq1, seq2, k=EDIT_K, thresh=EDIT_K):
     edit_dists = [edit_dist(seq1[i:i+k],seq2[j:j+k]) for i,j in zip(sketch1, sketch2)]
-    similarity = sum([k-e for e in edit_dists if e!=-1])
-    return similarity, edit_dists
-
-def est_overlap_edit_dist_filter(sketch1, sketch2, seq1, seq2, k=30):
-    edit_dists = [edit_dist(seq1[i:i+k],seq2[j:j+k]) for i,j in zip(sketch1, sketch2)]
-    similarity = sum([k-e for e in edit_dists if e!=-1])
-    return similarity, edit_dists
+    total_dist = sum([e for e in edit_dists if e!=-1 and e<=thresh])
+    return total_dist, edit_dists
 
 ###################################################
 
@@ -113,53 +114,89 @@ def get_matching_bases(i, j, seq1, seq2):
 
 def est_overlap_top_matching(sketch1, sketch2, seq1, seq2):
     n_matching = [get_matching_bases(i,j,seq1,seq2) for i,j in zip(sketch1, sketch2)]
-    total_match = sum(n_matching)
-    return total_match, n_matching
+#     total_match = sum([m for m in n_matching if m>=thresh])
+    return n_matching
 
-def est_overlap_top_matching_filter(sketch1, sketch2, seq1, seq2,c): #c is a parameter that increases the threshold as (1+c)*median
-    n_matching = [get_matching_bases(i,j,seq1,seq2) for i,j in zip(sketch1, sketch2)]
-    threshold = np.median(n_matching)*(1+c)
-    n_matching = np.array(n_matching)
-    n_matching[np.argwhere(n_matching <= threshold)] = 0
-    n_matching = n_matching.tolist()
-    total_match = sum(n_matching)
-    return total_match, n_matching
+#######################################################
 
-# def est_overlap_top_matching_filter_with_sampling(sketch1, sketch2, seq1, seq2,c): #c is a parameter that increases the threshold as (1+c)*median
-#     n_matching = [get_matching_bases(i,j,seq1,seq2) for i,j in zip(sketch1, sketch2)]
-#     threshold = np.median(n_matching)*(1+c)
-#     n_matching = np.array(n_matching)
-#     n_matching[np.argwhere(n_matching <= threshold)] = 0
-#     n_matching = n_matching.tolist()
-#     total_match = sum(n_matching)
-#     return total_match, n_matching 
+def get_inflec(estimates):
+    all_vals = np.concatenate([e[2] for e in estimates])
+    unique_vals, counts = np.unique(all_vals, return_counts=True)
+    inflec = [np.log(counts[i])-np.log(counts[i-1]) for i in range(1,len(counts))]
+    inflec = [inflec[i]-inflec[i-1] for i in range(1,len(inflec))]
+    inflec = [unique_vals[i+2] for i in range(1,len(inflec)) if np.sign(inflec[i])!=np.sign(inflec[i-1])][0]
+    print('inflection point threshold: {}'.format(inflec))
+    return inflec
+
+def get_llr(estimates, gt_path):
+    gt_df = pd.read_csv(gt_path, sep='\t', header=None, names=['i1','i2','overlap','l1','l2'])
+    gt_tuples = set([tuple(i) for i in gt_df[['i1','i2']].values])
+    err_vals = np.concatenate([e[2] for e in estimates if tuple(e[:2]) not in gt_tuples])
+    correct_vals = np.concatenate([e[2] for e in estimates if tuple(e[:2]) in gt_tuples])
+    max_val = max(max(err_vals),max(correct_vals))
+    
+    vals,counts = np.unique(err_vals, return_counts=True)
+    err_pmf = {v:p/sum(counts) for v,p in zip(vals,counts)}
+    min_err_prob = min(err_pmf.values())
+    vals,counts = np.unique(correct_vals, return_counts=True)
+    corr_pmf = {v:p/sum(counts) for v,p in zip(vals,counts)}
+    llr = [(corr_pmf[v] if v in corr_pmf else 0)/(err_pmf[v] if v in err_pmf else min_err_prob) for v in range(max_val+1)]
+    
+    # set all values after max equal to the max
+    maxidx = np.argmax(llr)
+    for i in range(maxidx, len(llr)):
+        llr[i] = llr[maxidx]
+    return llr
+
+def update_overlaps(estimates, method, gt_path=None):
+    if method == 'inflec':
+        thresh = get_inflec(estimates)
+        get_stat = lambda arr: sum([max(0,v-thresh) for v in arr])
+    if method == 'inflec2':
+        thresh = get_inflec(estimates)
+        get_stat = lambda arr: sum([v for v in arr if v>thresh])
+    elif method == 'max':
+        get_stat = lambda arr: max(arr)
+    elif method == 'mld':
+        llr = get_llr(estimates, gt_path)
+        get_stat = lambda arr: sum([llr[int(v)] for v in arr])
+    
+    print(llr)
+#     for i in range(len(estimates)):
+#         statistic = get_stat(estimates[i][2])
+#         e = estimates[i]
+#         estimates[i] = (e[0],e[1],statistic,e[3],e[4])
+    
+#     return estimates
+                
+
 ######################################################
     
-def pairwise_overlap_ests(sketches, seqs, seq_lens, est_overlap):
+def pairwise_overlap_ests(sketches, seqs, est_overlap, **args):
     estimates = []
     n = len(seqs)
     for i in tqdm(range(n-1), desc='Estimating pairwise overlaps', leave=True):
         for j in range(i+1,n):
-            statistic, arr = est_overlap(sketches[i], sketches[j], seqs[i], seqs[j])
-            if statistic > 0: 
-                estimates.append((i+1,j+1,statistic,seq_lens[i],seq_lens[j],arr))
+            arr = est_overlap(sketches[i], sketches[j], seqs[i], seqs[j], **args) 
+            estimates.append((i+1,j+1,arr,len(seqs[i]),len(seqs[j])))
     return estimates
 
 def write_overlaps(aln_file, estimates):
     print(f'# overlaps: {len(estimates)}')
     with open(aln_file, 'w') as fh:
         for aln in estimates:
-            fh.write('\t'.join([str(x) for x in aln])+'\n')
+            if aln[2] != 0:
+                fh.write('\t'.join([str(x) for x in aln])+'\n')
             
 ######################################################
     
 # function to obtain sketches based on location hashing
-def get_seq_sketches(seq, masks): #Sketch size is B
+def get_seq_sketches(seq, masks): 
     seq = convert_DNA_to_numbers(seq);
     sketches = [lexicographic_first(seq,mask) for mask in masks]
     return sketches
 
-def get_all_sketches(seqs, n_hash): #Modified this to not include n_bits, since it is confusing
+def get_all_sketches(seqs, n_hash): 
     seq_lens = [len(s) for s in seqs]
     masks = obtain_masks(max(seq_lens), n_hash);
     args = ((seq,masks) for seq in seqs)
@@ -169,14 +206,16 @@ def get_all_sketches(seqs, n_hash): #Modified this to not include n_bits, since 
 
 ######################################################
 
-def find_overlaps(fasta_file, aln_file, n_hash=100, n_bits=None, k=None, est_method=1):
-    seqs = su.get_seqs(fasta_file); seq_lens = [len(s) for s in seqs]
+# def find_overlaps2(fasta_file, n_hash, **args):
+#     seqs = su.get_seqs(fasta_file)
+#     sketches = get_all_sketches(seqs, n_hash)
+#     estimates = pairwise_overlap_ests(sketches, seqs, est_overlap_top_matching)
+#     return estimates
+
+def find_overlaps(fasta_file, aln_file, n_hash, **args):
+    seqs = su.get_seqs(fasta_file)
     sketches = get_all_sketches(seqs, n_hash)
-    if est_method==1: 
-        threshold = get_threshold(sketches, seqs)
-        estimates = pairwise_overlap_ests(sketches, seqs, seq_lens, est_overlap_top_matching)
-    elif est_method==2:
-        estimates = pairwise_overlap_ests(sketches, seqs, seq_lens, est_overlap_edit_dist)
-        
-    write_overlaps(aln_file, estimates)
+    estimates = pairwise_overlap_ests(sketches, seqs, est_overlap_top_matching)
+    estimates = update_overlaps(estimates, args['method'], args['gt_path'])
+#     write_overlaps(aln_file, estimates)
 
