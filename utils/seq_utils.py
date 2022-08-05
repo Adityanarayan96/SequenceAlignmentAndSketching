@@ -5,6 +5,7 @@ from collections import OrderedDict
 BASES = {'A','T','C','G'}
 RC = {'A':'T','T':'A','C':'G','G':'C','a':'t','t':'a','c':'g','g':'c'}
 revcomp = lambda seq: ''.join([RC[b] for b in seq[::-1]])
+revcomp_seqs = lambda seqs: [revcomp(seq) for seq in seqs]
 
 def clean_seqs(seqs, replace_nonbase=''):
     for i in range(len(seqs)):
@@ -21,14 +22,20 @@ def get_fasta(file):
 def get_fastq(file):
     return pyfastx.Fastq(file)
 
-def get_seqs(file, fa_fq='fa'):
+def get_seqs(file, fa_fq='fa', return_ids=False):
     seqs = []
+    ids = []
     with open(file, 'r') as fh:
         for line in fh.readlines():
-            if line[0] == ">": seqs.append('')
+            if line[0] == ">" or line[0] == '@': 
+                seqs.append('')
+                ids.append(line[1:].split()[0])
             else: seqs[-1] += line
     seqs = clean_seqs(seqs)
-    return seqs
+    if return_ids:
+        return seqs,ids
+    else:
+        return seqs
 
 def get_seq(file, seq_id=None, longest=False): # default is first seq
     f = get_fasta(file)
